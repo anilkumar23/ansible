@@ -130,47 +130,25 @@ ssh -i ~/new ec2-user@ec2-100-25-131-196.compute-1.amazonaws.com
 
 
 # Ansible playbook AWS - install docker
----
-- name: "AWS - Install docker"
-  hosts: aws-docker-vms
-  become: yes
+- hosts: webserver
+  become: true
+
   tasks:
-    - name: Update all packages
-      yum:
-        name: '*'
-        state: latest
-        update_only: yes
+    - name: ensure repository key is installed
+      apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
 
-    - name: Ensure a list of yum packages are installed
-      yum:
-        name: "{{ packages }}"
-        state: latest
-        update_cache: yes
-      vars:
-        packages:
-        - python-pip
-        - yum-utils
-        - device-mapper-persistent-data
-        - lvm2
-        - amazon-linux-extras
+    - name: ensure docker registry is available
+      apt_repository: repo='deb https://download.docker.com/linux/ubuntu bionic stable' state=present
 
-    - name: Add extras repository
-      shell: yum-config-manager --enable extras
+    - name: ensure docker and dependencies are installed
+      apt: name=docker-ce update_cache=yes
 
-    - name: Install docker-ce (centos) via amazon-linux-extras packages
-      shell: "amazon-linux-extras install docker=18.06.1 -y"
+    # Uncomment the following to enable insecure registries with Docker
+    #- name: ensure docker can use insecure registries in 10.11.0.0/16
+    #  lineinfile: "dest=/etc/default/docker regexp=^DOCKER_OPTS line=DOCKER_OPTS='--insecure-registry 10.11.0.0/16'"
 
-    - name: Enable Docker CE service at startup
-      service:
-        name: docker
-        state: started
-        enabled: yes
-
-    - name: Ensure Python pip packages are installed
-      pip:
-        name: "{{ packages }}"
-      vars:
-        packages:
-        - boto
-        - boto3
-        - docker-compose
+    - service: name=docker state=restarted
+    - name: give accessable permisions
+      shell: sudo setfacl -m user:ubuntu:rw /var/run/docker.sock
